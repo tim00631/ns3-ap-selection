@@ -7,7 +7,6 @@
 #include "ns3/mobility-helper.h"
 #include "ns3/internet-stack-helper.h"
 #include "ns3/ipv4-address-helper.h"
-#include "ns3/on-off-helper.h"
 #include "ns3/csma-helper.h"
 #include "ns3/bridge-helper.h"
 #include "ns3/core-module.h"
@@ -16,40 +15,24 @@
 #include "ns3/yans-wifi-channel.h"
 #include "ns3/animation-interface.h"
 #include "ns3/netanim-module.h"
-#include "ns3/packet-socket-address.h"
 #include "ns3/rng-seed-manager.h"
 #include "ns3/applications-module.h"
 #include "ns3/internet-module.h"
-#include "ns3/olsr-helper.h"
-#include "ns3/ipv4-static-routing-helper.h"
-#include "ns3/ipv4-list-routing-helper.h"
-#include "ns3/point-to-point-helper.h"
-#include "ns3/v4ping-helper.h"
-
 #include "ns3/ns3-ai-module.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("APSelectionExperiment");
+uint32_t nWifis = 9;
 
-double g_signalDbmAvg = 0;
-double g_noiseDbmAvg = 0;
-uint32_t g_samples = 0;
-
-void MonitorSniffRx (Ptr<const Packet> packet,
-                     uint16_t channelFreqMhz,
-                     WifiTxVector txVector,
-                     MpduInfo aMpdu,
-                     SignalNoiseDbm signalNoise)
-
+struct RssiMapEntry
 {
-  g_samples++;
-  g_signalDbmAvg += ((signalNoise.signal - g_signalDbmAvg) / g_samples);
-  g_noiseDbmAvg += ((signalNoise.noise - g_noiseDbmAvg) / g_samples);
-//   std::cout << Simulator::Now ().GetMicroSeconds()/1000000.0 << packet->ToString() << std::endl;
-//   std::cout << "signal: " << signalNoise.signal << std::endl;
-}
-
+	double signal_avg; // record 0.5s average SNR
+	uint32_t n_samples;
+};
+std::unordered_map<std::string, std::unordered_map<std::string, RssiMapEntry>> apTable; // every AP should maintain a Map which is formed as <STA context, SignaldBm>;
+std::unordered_map<std::string, double> bg_signal_sum; // record the summation of signal
+std::unordered_map<std::string, double> target_signal; // record target STA signal;
 static Vector GetPosition (Ptr<Node> node) {
 	Ptr<MobilityModel> mobility = node->GetObject<MobilityModel> ();
 	return mobility->GetPosition();
@@ -64,13 +47,87 @@ static void PrintPositions(std::string s, Ptr<Node> node)
     Simulator::Schedule(Seconds(1), (&PrintPositions), s, node);
 }
 
-static void PrintSNRvalue (std::string s) {
-	std::cout << "t = " << Simulator::Now ().GetMicroSeconds()/1000000.0 << ", SNR: " << g_signalDbmAvg << std::endl;
-	g_signalDbmAvg = 0;
-	g_noiseDbmAvg = 0;
-	g_samples = 0;
-	Simulator::Schedule(Seconds(0.5), (&PrintSNRvalue), s);
+void GatherApInfo (Ptr<Node> targetStaNode) {
+	double interference_th = -72;
+	std::cout << "GatherApInfo" << std::endl;
+	for (auto it_ap: apTable) { // for every AP, summate their neighbor STA's SNR
+		double sum = 0;
+		for (auto it_sta: it_ap.second) {
+			Ptr<WifiNetDevice> wifi_dev = DynamicCast<WifiNetDevice>(targetStaNode->GetDevice(0));
+			Ptr<StaWifiMac> wifi_mac = DynamicCast<StaWifiMac>(wifi_dev->GetMac());
+			std::stringstream address;
+			address << wifi_mac->GetAddress();
+			if (it_sta.first == address.str()) {
+				std::cout << "skip self signal" << std::endl;
+				target_signal.insert(std::pair<std::string, double>(it_ap.first, it_sta.second.signal_avg));
+			}
+			else if (it_sta.second.signal_avg > interference_th) {
+				sum += it_sta.second.signal_avg;
+			}
+			else {
+				std::cout << "not to sum up " << it_sta.second.signal_avg  << " " << it_ap.first << std::endl;
+			}
+			it_sta.second.signal_avg = 0;
+			it_sta.second.n_samples = 0;
+		}
+		std::cout << it_ap.first << " sum:" << sum << std::endl;
+		bg_signal_sum.insert(std::pair<std::string, double>(it_ap.first, sum));
+	}
+	/*
+	* SINR caluation S/(I+N)
+	*/
+	Simulator::Schedule(Seconds(0.5), (&GatherApInfo), targetStaNode);
 }
+
+static std::string ConvertMacAddressToStr (Mac48Address address) {
+	std::stringstream stream;
+	stream << address;
+	return stream.str();
+}
+
+void MonitorSniffRx (std::string context, 
+					 Ptr<const Packet> packet,
+                     uint16_t channelFreqMhz,
+                     WifiTxVector txVector,
+                     MpduInfo aMpdu,
+                     SignalNoiseDbm signalNoise) {
+	// g_samples++;
+	// g_signalDbmAvg = signalNoise.signal;
+	// g_noiseDbmAvg = signalNoise.noise;
+	WifiMacHeader hdr;
+	if(packet->PeekHeader(hdr)) {
+		if (hdr.IsBeacon()) {
+			// hdr.Print(std::cout);
+			// std::cout << std::endl;
+			// std::cout << context << std::endl;
+			std::cout << "signal: " << signalNoise.signal << " ";
+			// std::cout << "\t(Beacon RA) Addr2: " << hdr.GetAddr2() << " " << std::endl; // Beacon's AP address put in Addr2
+			// std::cout << "\t(Beacon RA) Addr3: " << hdr.GetAddr3() << " " << std::endl;
+
+			std::string address = ConvertMacAddressToStr(hdr.GetAddr2());
+			std::cout << address << std::endl;
+			auto it_ApTable = apTable.find(address);
+			if (it_ApTable != apTable.end()) {
+				auto it_staSnrTable = it_ApTable->second.find(context);
+				if (it_staSnrTable != it_ApTable->second.end()) {
+					it_staSnrTable->second.n_samples++;
+					it_staSnrTable->second.signal_avg += (signalNoise.signal - it_staSnrTable->second.signal_avg) / it_staSnrTable->second.n_samples;
+				}
+				else {
+					RssiMapEntry entry;
+					entry.n_samples = 1;
+					entry.signal_avg = signalNoise.signal;
+					it_ApTable->second.insert(std::pair<std::string, RssiMapEntry>(context, entry));
+				}
+			}
+			else {
+				std::unordered_map<std::string, RssiMapEntry> staSnrTable;
+				apTable.insert(std::pair<std::string, std::unordered_map<std::string, RssiMapEntry>>(address, staSnrTable));
+			}
+		}
+	}
+}
+
 struct Env
 {
   int a;
@@ -230,7 +287,6 @@ void APSelectionExperiment::RunExperiment(uint32_t totalTime,
 	m_exponent = exponent;
 	m_referenceDistance = referenceDistance;
 
-
 	CreateNodes();
 	InstallSwitchLanDevices();
 	InstallWlanDevices();
@@ -240,15 +296,16 @@ void APSelectionExperiment::RunExperiment(uint32_t totalTime,
 	// std::ostringstream ossta;
 	// ossta << "/NodeList/" << targetStaNode->GetId() << "/$ns3::MobilityModel/CourseChange";
 	// Config::Connect(ossta.str(), MakeCallback(&APSelectionExperiment::CourseChange));
-
 	// AsciiTraceHelper ascii;
 	// MobilityHelper::EnableAsciiAll(ascii.CreateFileStream("wifi-wired-bridging.mob"));
 	std::ostringstream oss;
-	oss << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/*/Phy/MonitorSnifferRx";
-	Config::ConnectWithoutContext (oss.str(), MakeCallback (&MonitorSniffRx));
-	// AnimationInterface anim("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/rl-ap-selection-anim.xml");
-	// anim.SetConstantPosition(switchNode, 0, 0, 0);
-	// anim.SetConstantPosition(serverNode, 0, 0, 0);
+	oss << "/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx";
+	// Config::ConnectWithoutContext (oss.str(), MakeCallback (MakeCallback(&APSelectionExperiment::MonitorSniffRx));
+	Config::Connect(oss.str(), MakeCallback(&MonitorSniffRx));
+	AnimationInterface anim("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/rl-ap-selection-anim.xml");
+	anim.SetMaxPktsPerTraceFile(10000000);
+	anim.SetConstantPosition(switchNode, 0, 0, 0);
+	anim.SetConstantPosition(serverNode, 0, 0, 0);
 	if (m_enablePcap) {
 		// anim.EnablePacketMetadata(true);
 	}
@@ -257,15 +314,18 @@ void APSelectionExperiment::RunExperiment(uint32_t totalTime,
 	// Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/routes.txt", std::ios::out);
 	// g.PrintRoutingTableAllAt (Seconds (4.0), routingStream);
 	// print config
-	Config::SetDefault("ns3::ConfigStore::Filename", StringValue("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/output-attributes.txt"));
-	Config::SetDefault("ns3::ConfigStore::FileFormat", StringValue("RawText"));
-	Config::SetDefault("ns3::ConfigStore::Mode", StringValue("Save"));
-	ConfigStore outputConfig2;
-	outputConfig2.ConfigureDefaults();
-	outputConfig2.ConfigureAttributes();
+	// Config::SetDefault("ns3::ConfigStore::Filename", StringValue("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/output-attributes.txt"));
+	// Config::SetDefault("ns3::ConfigStore::FileFormat", StringValue("RawText"));
+	// Config::SetDefault("ns3::ConfigStore::Mode", StringValue("Save"));
+	// ConfigStore outputConfig2;
+	// outputConfig2.ConfigureDefaults();
+	// outputConfig2.ConfigureAttributes();
 
 	// Simulator::Schedule(Seconds(0), (&PrintPositions), "target-sta", targetStaNode);
-	Simulator::Schedule(Seconds(0), (&PrintSNRvalue), "target-sta");
+	// PacketMetadata::Enable();
+	// Packet::EnableChecking();
+	// Packet::EnablePrinting();
+	Simulator::Schedule(Seconds(0), (&GatherApInfo), targetStaNode);
 	Simulator::Stop(Seconds(m_totalTime));
 	Simulator::Run();
 	Simulator::Destroy();
@@ -275,9 +335,10 @@ void APSelectionExperiment::CreateNodes()
 {
 	apNodes.Create(m_nWifis);
 	// staNodes.Create(m_nStas);
-	targetStaNode = CreateObject<Node>();
 	switchNode = CreateObject<Node>();
 	serverNode = CreateObject<Node>();
+	targetStaNode = CreateObject<Node>();
+
 }
 
 void APSelectionExperiment::SetAPMobility()
@@ -379,19 +440,20 @@ void APSelectionExperiment::InstallWlanDevices()
 	YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default();
 	wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel",
 									"Exponent", DoubleValue (m_exponent),
-									"ReferenceDistance", DoubleValue (m_referenceDistance));
-									// "ReferenceLoss", DoubleValue (40.0953)); // convert from mininet 
+									"ReferenceDistance", DoubleValue (m_referenceDistance),
+									"ReferenceLoss", DoubleValue (40.0953)); // convert from mininet 
 
 	wifiPhy.SetChannel(wifiChannel.Create());
 	std::vector<uint32_t> apChannelNum {1, 6, 1, 11, 1, 11, 1, 6, 1};
 
 	WifiMacHelper wifiMac;
-	Ssid ssid = Ssid("wifi-default");
+	Ssid ssid = Ssid("wifi-ssid");
 	for (uint32_t i = 0; i < m_nWifis; ++i)
 	{
 		wifiPhy.Set("ChannelNumber", UintegerValue(apChannelNum[i]));
 		wifiMac.SetType("ns3::ApWifiMac",
-						"Ssid", SsidValue(ssid));
+						"Ssid", SsidValue(ssid),
+						"BeaconGeneration", BooleanValue(true));
 
 		apDevices.Add(wifi.Install(wifiPhy, wifiMac, apNodes.Get(i)));
 		BridgeHelper bridge;
@@ -400,7 +462,8 @@ void APSelectionExperiment::InstallWlanDevices()
                                   NetDeviceContainer (apDevices.Get(i), apEthDevices.Get(i))); // AP have two ports (wlan, eth)
 
 		wifiMac.SetType("ns3::StaWifiMac",
-					"Ssid", SsidValue(ssid));
+					"Ssid", SsidValue(ssid),
+					"ActiveProbing", BooleanValue(false));
 		NodeContainer inRangeStas;
 		inRangeStas.Create (m_nStas);
 
@@ -412,7 +475,8 @@ void APSelectionExperiment::InstallWlanDevices()
 	}
 
 	wifiMac.SetType("ns3::StaWifiMac",
-					"Ssid", SsidValue(ssid));	
+					"Ssid", SsidValue(ssid),
+					"ActiveProbing", BooleanValue(false));	
 	targetStaDevice = wifi.Install(wifiPhy, wifiMac, targetStaNode).Get(0);
 	SetTargetStaMobility();
 	if (m_enablePcap) {
@@ -473,7 +537,7 @@ void APSelectionExperiment::InstallApplications()
 
 		UdpEchoClientHelper client(serverAddress);
 		client.SetAttribute("MaxPackets", UintegerValue(4294967295u));
-		client.SetAttribute("Interval", TimeValue(Seconds(0.01)));
+		client.SetAttribute("Interval", TimeValue(Seconds(0.001)));
 		client.SetAttribute("PacketSize", UintegerValue(512));
 		clientApps.Add(client.Install(staNodes.Get(i)));
 		
@@ -506,15 +570,16 @@ int
 main(int argc, char *argv[])
 {
 	int memblock_key = 2333; ///< memory block key, need to keep the same in the python script
+	// LogComponentEnable ("StaWifiMac", LOG_ALL);
 	// LogComponentEnable ("UdpEchoClientApplication", LOG_INFO);
 	// LogComponentEnable ("UdpEchoServerApplication", LOG_INFO);
-	uint32_t totalTime = 60;
-	uint32_t nWifis = 9;
+	uint32_t totalTime = 10;
+	nWifis = 9;
 	uint32_t nStas = 1;
 	double nodeSpeed = 0.4; //in m/s	
 	int nodePause = 0; //in s
 	bool verbose = false;
-	bool enablePcap = false;
+	bool enablePcap = true;
 	double txGain = 5;
 	double rxGain = 5;
 	double cca_edthreshold = -62;
