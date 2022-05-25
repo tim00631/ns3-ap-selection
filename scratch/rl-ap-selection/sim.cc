@@ -36,6 +36,7 @@ double time_interval;
 uint32_t recvBytes = 0;
 uint32_t txBytes = 0;
 double throughput = 0;
+std::string cwd;
 struct RssiMapEntry
 {
 	double signal_avg; // record 0.5s average SNR
@@ -393,7 +394,7 @@ void APSelectionExperiment::RunExperiment(uint32_t total_time,
 	oss << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/Phy/MonitorSnifferRx";
 	Config::Connect(oss.str(), MakeCallback(&MonitorSniffRx));
 
-	AnimationInterface anim("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/rl-ap-selection-anim.xml");
+	AnimationInterface anim(cwd+"/rl-ap-selection-anim.xml");
 	anim.SetMaxPktsPerTraceFile(10000000);
 	anim.SetConstantPosition(switchNode, 0, 0, 0);
 	anim.SetConstantPosition(serverNode, 0, 0, 0);
@@ -403,10 +404,10 @@ void APSelectionExperiment::RunExperiment(uint32_t total_time,
 	}
 	// // Trace routing tables 
 	// Ipv4GlobalRoutingHelper g;
-	// Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/routes.txt", std::ios::out);
+	// Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("routes.txt", std::ios::out);
 	// g.PrintRoutingTableAllAt (Seconds (4.0), routingStream);
 	// print config
-	// Config::SetDefault("ns3::ConfigStore::Filename", StringValue("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/output-attributes.txt"));
+	// Config::SetDefault("ns3::ConfigStore::Filename", StringValue("output-attributes.txt"));
 	// Config::SetDefault("ns3::ConfigStore::FileFormat", StringValue("RawText"));
 	// Config::SetDefault("ns3::ConfigStore::Mode", StringValue("Save"));
 	// ConfigStore outputConfig2;
@@ -508,8 +509,9 @@ void APSelectionExperiment::InstallSwitchLanDevices()
 
 	bridgeHelper.Install(switchNode, switchDevices);
 	if (m_enablePcap) {
-		csmaHelper.EnablePcap("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/pcap/server-eth", serverDevice);	
-		csmaHelper.EnablePcap("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/pcap/metric_server-eth", metricServerDevice);	
+		std::string s(cwd);
+		csmaHelper.EnablePcap(s+"/pcap/server-eth", serverDevice);
+		csmaHelper.EnablePcap(s+"/pcap/metric_server-eth", metricServerDevice);	
 	}
 
 	SetAPMobility();
@@ -582,9 +584,10 @@ void APSelectionExperiment::InstallWlanDevices()
 	targetStaDevice = wifi.Install(wifiPhy, wifiMac, targetStaNode).Get(0);
 	SetTargetStaMobility();
 	if (m_enablePcap) {
-		wifiPhy.EnablePcap("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/pcap/ap-wlan", apDevices);
-		wifiPhy.EnablePcap("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/pcap/sta-wlan", staDevices);
-		wifiPhy.EnablePcap("/home/hscc/ns-3-allinone/ns-3.30/scratch/rl-ap-selection/pcap/target_sta-wlan", targetStaDevice);
+		std::string s(cwd);
+		wifiPhy.EnablePcap(s+"/pcap/ap-wlan", apDevices);
+		wifiPhy.EnablePcap(s+"/pcap/sta-wlan", staDevices);
+		wifiPhy.EnablePcap(s+"/pcap/target_sta-wlan", targetStaDevice);
 	}
 }
 
@@ -696,7 +699,7 @@ main(int argc, char *argv[])
 	cmd.AddValue("nStas", "Number of stations", nStas);
 	cmd.AddValue("enablePcap", "trace the pcap and push in /pcap dir", enablePcap);
 	cmd.AddValue("verbose", "turn on all WifiNetDevice log components", verbose);
-
+	cmd.AddValue("cwd", "Current working directory", cwd);
 	cmd.Parse(argc, argv);
 	std::cout << "nWifis:" << nWifis << ",nStas:" << nStas << std::endl;
 	// std::cout << "plus:" << interface.step(nWifis, nStas) << std::endl;

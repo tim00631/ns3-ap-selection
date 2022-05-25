@@ -9,7 +9,7 @@ import torch
 from DQN import DQN4Graph, DeepQNetwork, DDQN_PER_4Graph
 from replay_memory import make_experience
 from torch.utils.tensorboard import SummaryWriter
-
+import os
 # The environment (in this example, contain 'a' and 'b')
 # shared between ns-3 and python with the same shared memory
 # using the ns3-ai model.
@@ -60,6 +60,7 @@ seed = 201492894
 torch.manual_seed(seed)
 np.random.seed(seed)
 random.seed(seed)
+cwd = os.getcwd()
 
 def update_state_history(state_history, one_step_state):
     state_history = np.roll(state_history, -1, axis=0)
@@ -80,7 +81,8 @@ exp = Experiment(mempool_key, mem_size, 'rl-ap-selection', '../../')      # Set 
 exp.reset()                                                 # Reset the environment
 ns3Settings = {
                 'nWifis': nWifis,
-                'total_time': total_time
+                'total_time': total_time,
+                'cwd': cwd
             }
 model_name = 'DCRQN'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
