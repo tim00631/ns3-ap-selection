@@ -524,12 +524,12 @@ void APSelectionExperiment::InstallWlanDevices()
 	WifiHelper wifi;
 	wifi.SetStandard(WIFI_PHY_STANDARD_80211g);
 	// wifi.SetStandard (WIFI_PHY_STANDARD_80211n_2_4GHZ);
-	std::string phyMode("ErpOfdmRate54Mbps");
+	// std::string phyMode("ErpOfdmRate54Mbps");
 	// Fix non-unicast data rate to be the same as that of unicast
-	Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode", StringValue(phyMode));
-	wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
-								"DataMode",StringValue(phyMode),
-								"ControlMode",StringValue(phyMode));
+	// Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode", StringValue(phyMode));
+	// wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
+	// 							"DataMode",StringValue(phyMode),
+	// 							"ControlMode",StringValue(phyMode));
 	YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default();
 	wifiPhy.Set("TxGain", DoubleValue(m_txGain));
 	wifiPhy.Set("RxGain", DoubleValue(m_rxGain));
