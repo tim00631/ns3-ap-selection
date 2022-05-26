@@ -628,7 +628,7 @@ void APSelectionExperiment::InstallApplications()
 
 		UdpEchoClientHelper client(serverAddress);
 		client.SetAttribute("MaxPackets", UintegerValue(4294967295u));
-		client.SetAttribute("Interval", TimeValue(Seconds(0.005)));
+		client.SetAttribute("Interval", TimeValue(Seconds(0.01)));
 		client.SetAttribute("PacketSize", UintegerValue(512));
 		// std::cout << staInterfaces.GetAddress(i, 0) << std::endl;
 		clientApps.Add(client.Install(staNodes.Get(i)));	
@@ -649,7 +649,7 @@ void APSelectionExperiment::InstallApplications()
 	Address serverAddress2 = InetSocketAddress(metricServerInterface.GetAddress(0), 9000);
 	UdpEchoClientHelper client(serverAddress2);
 	client.SetAttribute("MaxPackets", UintegerValue(4294967295u));
-	client.SetAttribute("Interval", TimeValue(Seconds(0.001)));
+	client.SetAttribute("Interval", TimeValue(Seconds(0.005)));
 	client.SetAttribute("PacketSize", UintegerValue(512)); // Bytes
 	clientApps.Add(client.Install(targetStaNode));
 	

@@ -40,7 +40,7 @@ TOTAL_HISTORY_STEP = 64 # Time series steps
 time_counter = 1
 # ==================================
 # parameter that can adjust
-enable_tb = False
+enable_tb = True
 is_training = True
 total_time = 20000
 time_interval = 0.5
