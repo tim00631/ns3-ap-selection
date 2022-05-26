@@ -151,7 +151,7 @@ public:
   bool IsAssociated (void) const;
 
   void SetNewAssociation(Mac48Address bssid);
-
+  void SendDisAssociation (void);
 private:
   /**
    * The current MAC state of the STA.

@@ -146,6 +146,22 @@ AiWifiMac::SetWifiRemoteStationManager (const Ptr<WifiRemoteStationManager> stat
   m_stationManager->SetPcfSupported (GetPcfSupported ());
 }
 
+void 
+AiWifiMac::SendDisAssociation (void)
+{
+  NS_LOG_FUNCTION (this);
+  WifiMacHeader hdr;
+  hdr.SetType (WIFI_MAC_MGT_DISASSOCIATION);
+  hdr.SetAddr1 (GetBssid ());
+  hdr.SetAddr2 (GetAddress());
+  hdr.SetAddr3 (GetBssid ());
+  hdr.SetDsNotFrom ();
+  hdr.SetDsNotTo ();
+  Ptr<Packet> packet = Create<Packet> ();
+  packet->AddHeader(hdr);
+  m_txop->Queue(packet, hdr);
+}
+
 void
 AiWifiMac::SendProbeRequest (void)
 {
@@ -1164,6 +1180,8 @@ AiWifiMac::PhyCapabilitiesChanged (void)
 
 void
 AiWifiMac::SetNewAssociation(Mac48Address bssid) {
+  SetState (UNASSOCIATED);
+  SendDisAssociation();
   m_linkDown ();
   SetState (WAIT_ASSOC_RESP);
   SetBssid(bssid);
