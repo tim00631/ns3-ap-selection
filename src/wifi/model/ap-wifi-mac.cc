@@ -1497,6 +1497,7 @@ ApWifiMac::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
                   if (j->second == from)
                     {
                       m_staList.erase (j);
+                      std::cout << "Erase disassoc received from " << from << std::endl;
                       break;
                     }
                 }

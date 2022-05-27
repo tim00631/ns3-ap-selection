@@ -202,6 +202,10 @@ void WhenAssociated(Mac48Address address) {
 	std::cout << Simulator::Now().GetSeconds() << "s, associated to AP " << ConvertMacAddressToIndex(address) << ", addr:" << address << std::endl;
 }
 
+void DeAssoc(Mac48Address address) {
+	std::cout << Simulator::Now().GetSeconds() << "s, Deassociated. " << std::endl;
+}
+
 void CheckThroughput (FlowMonitorHelper* fmhelper, Ptr<FlowMonitor> flowMon, Ipv4InterfaceContainer* targetStaInterface)
 {	
 	// std::cout << "CheckThroughput " << Simulator::Now().GetSeconds() << std::endl;
@@ -381,7 +385,9 @@ void APSelectionExperiment::RunExperiment(uint32_t total_time,
 	std::ostringstream ossta;
 	ossta << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/$ns3::WifiNetDevice/Mac/$ns3::AiWifiMac/Assoc";
 	Config::ConnectWithoutContext(ossta.str(), MakeCallback(&WhenAssociated));
-
+	ossta.clear();
+	ossta << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/$ns3::WifiNetDevice/Mac/$ns3::AiWifiMac/DeAssoc";
+	Config::ConnectWithoutContext(ossta.str(), MakeCallback(&DeAssoc));
 	// AsciiTraceHelper ascii;
 	// MobilityHelper::EnableAsciiAll(ascii.CreateFileStream("wifi-wired-bridging.mob"));
 	// Config::ConnectWithoutContext (oss.str(), MakeCallback (MakeCallback(&APSelectionExperiment::MonitorSniffRx));
@@ -394,14 +400,14 @@ void APSelectionExperiment::RunExperiment(uint32_t total_time,
 	oss << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/Phy/MonitorSnifferRx";
 	Config::Connect(oss.str(), MakeCallback(&MonitorSniffRx));
 
-	AnimationInterface anim(cwd+"/rl-ap-selection-anim.xml");
-	anim.SetMaxPktsPerTraceFile(10000000);
-	anim.SetConstantPosition(switchNode, 0, 0, 0);
-	anim.SetConstantPosition(serverNode, 0, 0, 0);
-	anim.SetConstantPosition(metricServerNode, 0, 0, 0);
-	if (m_enablePcap) {
-		anim.EnablePacketMetadata(true);
-	}
+	// AnimationInterface anim(cwd+"/rl-ap-selection-anim.xml");
+	// anim.SetMaxPktsPerTraceFile(10000000);
+	// anim.SetConstantPosition(switchNode, 0, 0, 0);
+	// anim.SetConstantPosition(serverNode, 0, 0, 0);
+	// anim.SetConstantPosition(metricServerNode, 0, 0, 0);
+	// if (m_enablePcap) {
+	// 	anim.EnablePacketMetadata(true);
+	// }
 	// // Trace routing tables 
 	// Ipv4GlobalRoutingHelper g;
 	// Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("routes.txt", std::ios::out);
@@ -679,7 +685,7 @@ main(int argc, char *argv[])
 	double nodeSpeed = 0.5; //in m/s	
 	int nodePause = 0; //in s
 	bool verbose = false;
-	bool enablePcap = true;
+	bool enablePcap = false;
 	double txGain = 5;
 	double rxGain = 5;
 	double cca_edthreshold = -62;
