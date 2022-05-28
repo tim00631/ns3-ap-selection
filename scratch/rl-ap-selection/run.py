@@ -82,6 +82,7 @@ exp.reset()                                                 # Reset the environm
 ns3Settings = {
                 'nWifis': nWifis,
                 'total_time': total_time,
+                'time_interval': time_interval,
                 'cwd': cwd
             }
 model_name = 'DCRQN'
@@ -127,7 +128,7 @@ try:
             state_history = update_state_history(state_history, one_step_state)
             obs = np.reshape(state_history, (1, 1, state_history.shape[0], state_history.shape[1]))
             if time_counter > 1:
-                print(f"store: action:{action}, reward:{reward}")
+                # print(f"store: action:{action}, reward:{reward}")
                 model.memory.append(prev_state_history, state_history, action, reward)
                 action_history.append(action)
                 reward_history.append(reward)

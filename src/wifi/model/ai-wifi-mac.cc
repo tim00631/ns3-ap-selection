@@ -305,7 +305,7 @@ AiWifiMac::TryToEnsureAssociated (void)
        * so we should assume we are not associated anymore.
        * We try to initiate a scan now.
        */
-      m_linkDown ();
+      // m_linkDown ();
       // StartScanning ();
       break;
     case WAIT_ASSOC_RESP:
@@ -709,7 +709,7 @@ AiWifiMac::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
                 }
               else
                 {
-                  ScanningTimeout ();
+                  // ScanningTimeout ();
                 }
             }
         }

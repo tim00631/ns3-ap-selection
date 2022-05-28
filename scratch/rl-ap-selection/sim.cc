@@ -169,7 +169,7 @@ void GatherApInfo (Ptr<Node> targetStaNode) {
 	oss << "time " << std::setw(4) << Simulator::Now().GetSeconds() << "s RSSI:\n";
 	for (uint32_t i = 0; i < target_signalVec.size(); i++) {
 		oss << std::setw(10) << target_signalVec[i] << " ";
-		target_signalVec[i] /= (bg_signal_sumVec[i]+ 1);
+		// target_signalVec[i] /= (bg_signal_sumVec[i]+ 1);
 	}
 	oss << std::endl;
 	std::cout << oss.str();
@@ -390,12 +390,6 @@ void APSelectionExperiment::RunExperiment(uint32_t total_time,
 	Config::ConnectWithoutContext(ossta.str(), MakeCallback(&DeAssoc));
 	// AsciiTraceHelper ascii;
 	// MobilityHelper::EnableAsciiAll(ascii.CreateFileStream("wifi-wired-bridging.mob"));
-	// Config::ConnectWithoutContext (oss.str(), MakeCallback (MakeCallback(&APSelectionExperiment::MonitorSniffRx));
-	for (uint32_t i = 0; i < staNodes.GetN(); i++) {
-		std::ostringstream oss;
-		oss << "/NodeList/" << staNodes.Get(i)->GetId() << "/DeviceList/0/Phy/MonitorSnifferRx";
-		Config::Connect(oss.str(), MakeCallback(&MonitorSniffRx));
-	}
 	std::ostringstream oss;
 	oss << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/Phy/MonitorSnifferRx";
 	Config::Connect(oss.str(), MakeCallback(&MonitorSniffRx));
@@ -504,7 +498,6 @@ void APSelectionExperiment::InstallSwitchLanDevices()
 		apEthDevices.Add(link.Get(0));
 		switchDevices.Add(link.Get(1));
 	}
-
 	NetDeviceContainer serverlink = csmaHelper.Install(NodeContainer(serverNode, switchNode));
 	serverDevice = serverlink.Get(0);
 	switchDevices.Add(serverlink.Get(1));
@@ -530,12 +523,12 @@ void APSelectionExperiment::InstallWlanDevices()
 	WifiHelper wifi;
 	wifi.SetStandard(WIFI_PHY_STANDARD_80211g);
 	// wifi.SetStandard (WIFI_PHY_STANDARD_80211n_2_4GHZ);
-	// std::string phyMode("ErpOfdmRate54Mbps");
+	// std::string phyMode("ErpOfdmRate12Mbps");
 	// Fix non-unicast data rate to be the same as that of unicast
 	// Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode", StringValue(phyMode));
 	// wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
-	// 							"DataMode",StringValue(phyMode),
-	// 							"ControlMode",StringValue(phyMode));
+								// "DataMode",StringValue(phyMode),
+								// "ControlMode",StringValue(phyMode));
 	YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default();
 	wifiPhy.Set("TxGain", DoubleValue(m_txGain));
 	wifiPhy.Set("RxGain", DoubleValue(m_rxGain));
@@ -556,11 +549,12 @@ void APSelectionExperiment::InstallWlanDevices()
 	std::vector<uint32_t> apChannelNum {1, 1, 1, 1, 1, 1, 1, 1, 1}; // ns3 doesn't support multi-channel scanning
 	std::vector<uint32_t> n_bg_stas {0, 2, 3, 1, 0, 1, 3, 1, 1}; // Randomly create 0~3 background stas around this ap.
 
+	CsmaHelper csmaHelper;
 	WifiMacHelper wifiMac;
 	Ssid ssid = Ssid("wifi-ssid");
 	for (uint32_t i = 0; i < m_nWifis; ++i)
 	{
-		wifiPhy.Set("ChannelNumber", UintegerValue(apChannelNum[i]));
+		// wifiPhy.Set("ChannelNumber", UintegerValue(apChannelNum[i]));
 		wifiMac.SetType("ns3::ApWifiMac",
 						"Ssid", SsidValue(ssid),
 						"BeaconGeneration", BooleanValue(true));
@@ -568,19 +562,23 @@ void APSelectionExperiment::InstallWlanDevices()
 		apDevices.Add(wifi.Install(wifiPhy, wifiMac, apNodes.Get(i)));
 		BridgeHelper bridge;
 		NetDeviceContainer bridgeDev;
-      	bridgeDev = bridge.Install (apNodes.Get(i), 
-                                  NetDeviceContainer (apDevices.Get(i), apEthDevices.Get(i))); // AP have two ports (wlan, eth)
-
-		wifiMac.SetType("ns3::StaWifiMac",
-					"Ssid", SsidValue(ssid),
-					"ActiveProbing", BooleanValue(false));
 		NodeContainer inRangeStas;
-		inRangeStas.Create (n_bg_stas[i]);
+		NetDeviceContainer apPortDevices;
+		apPortDevices.Add(apDevices.Get(i));
+		apPortDevices.Add(apEthDevices.Get(i));
 
+		inRangeStas.Create (n_bg_stas[i]);
+		for(uint32_t j = 0; j < inRangeStas.GetN(); j++) {
+			NetDeviceContainer link = csmaHelper.Install(NodeContainer(inRangeStas.Get(j), apNodes.Get(i)));
+			staDevices.Add(link.Get(0));
+			apPortDevices.Add(link.Get(1));
+
+		}
+      	bridgeDev = bridge.Install (apNodes.Get(i), apPortDevices); // ports (wlan, eth1, eth-sta{i})
 		SetStaMobilityWithAPPosition(GetPosition(apNodes.Get(i)), inRangeStas);
 
 		staNodes.Add(inRangeStas);
-		staDevices.Add(wifi.Install(wifiPhy, wifiMac, inRangeStas));
+		// staDevices.Add(wifi.Install(wifiPhy, wifiMac, inRangeStas));
 
 	}
 
@@ -592,7 +590,7 @@ void APSelectionExperiment::InstallWlanDevices()
 	if (m_enablePcap) {
 		std::string s(cwd);
 		wifiPhy.EnablePcap(s+"/pcap/ap-wlan", apDevices);
-		wifiPhy.EnablePcap(s+"/pcap/sta-wlan", staDevices);
+		csmaHelper.EnablePcap(s+"/pcap/sta-eth", staDevices);
 		wifiPhy.EnablePcap(s+"/pcap/target_sta-wlan", targetStaDevice);
 	}
 }
@@ -636,27 +634,16 @@ void APSelectionExperiment::InstallApplications()
 		client.SetAttribute("MaxPackets", UintegerValue(4294967295u));
 		client.SetAttribute("Interval", TimeValue(Seconds(0.01)));
 		client.SetAttribute("PacketSize", UintegerValue(512));
-		// std::cout << staInterfaces.GetAddress(i, 0) << std::endl;
 		clientApps.Add(client.Install(staNodes.Get(i)));	
 	}
-
-	// UdpEchoServerHelper server(8000);
-	// serverApps.Add(server.Install(serverNode));
-	// Address serverAddress = InetSocketAddress(serverInterface.GetAddress(0), 8000);
-	// UdpEchoClientHelper client1(serverAddress);
-	// client1.SetAttribute("MaxPackets", UintegerValue(4294967295u));
-	// client1.SetAttribute("Interval", TimeValue(Seconds(0.001)));
-	// client1.SetAttribute("PacketSize", UintegerValue(512)); // Bytes
-	// clientApps.Add(client1.Install(staNodes.Get(0)));
-
 
 	UdpEchoServerHelper server2(9000);
 	serverApps.Add(server2.Install(metricServerNode));
 	Address serverAddress2 = InetSocketAddress(metricServerInterface.GetAddress(0), 9000);
 	UdpEchoClientHelper client(serverAddress2);
 	client.SetAttribute("MaxPackets", UintegerValue(4294967295u));
-	client.SetAttribute("Interval", TimeValue(Seconds(0.005)));
-	client.SetAttribute("PacketSize", UintegerValue(512)); // Bytes
+	client.SetAttribute("Interval", TimeValue(Seconds(0.001)));
+	client.SetAttribute("PacketSize", UintegerValue(1024)); // Bytes
 	clientApps.Add(client.Install(targetStaNode));
 	
 	serverApps.Start(Seconds(0.0));
