@@ -36,14 +36,39 @@ class Act(Structure):
         ('action', c_uint32)
     ]
 
+
+def update_state_history(state_history, one_step_state):
+    state_history = np.roll(state_history, -1, axis=0)
+    state_history[-1] = one_step_state
+    return state_history
+    
+def env_step(data):
+    state = np.array([data.env.rssi_ap_0, data.env.rssi_ap_1, data.env.rssi_ap_2, data.env.rssi_ap_3, data.env.rssi_ap_4,
+                    data.env.rssi_ap_5, data.env.rssi_ap_6, data.env.rssi_ap_7, data.env.rssi_ap_8])
+    reward = data.env.reward
+    return state, reward
+
+def get_parser():
+    parser = argparse.ArgumentParser(description='training configuration')
+    parser.add_argument('--total_time', type=int, default=20000)
+    parser.add_argument('--is_training', type=int, default=0)
+    parser.add_argument('--enable_tb', type=int, default=1)
+    parser.add_argument('--time_interval', type=float, default=0.5)
+
+    return parser
+
+parser = get_parser()
+args = parser.parse_args()
+print(args)
+
 TOTAL_HISTORY_STEP = 64 # Time series steps
 time_counter = 1
 # ==================================
 # parameter that can adjust
-enable_tb = True
-is_training = True
-total_time = 20000
-time_interval = 0.5
+enable_tb = args.enable_tb
+is_training = args.is_training
+total_time = args.total_time
+time_interval = args.time_interval
 replace_target_iter = 20
 batch_size = 32
 lr = 0.01
@@ -61,17 +86,6 @@ torch.manual_seed(seed)
 np.random.seed(seed)
 random.seed(seed)
 cwd = os.getcwd()
-
-def update_state_history(state_history, one_step_state):
-    state_history = np.roll(state_history, -1, axis=0)
-    state_history[-1] = one_step_state
-    return state_history
-    
-def env_step(data):
-    state = np.array([data.env.rssi_ap_0, data.env.rssi_ap_1, data.env.rssi_ap_2, data.env.rssi_ap_3, data.env.rssi_ap_4,
-                    data.env.rssi_ap_5, data.env.rssi_ap_6, data.env.rssi_ap_7, data.env.rssi_ap_8])
-    reward = data.env.reward
-    return state, reward
 
 mempool_key = 1234                                          # memory pool key, arbitrary integer large than 1000
 mem_size = 4096                                             # memory pool size in bytes
