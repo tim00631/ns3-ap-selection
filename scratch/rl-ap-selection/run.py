@@ -154,10 +154,11 @@ try:
             action = model.choose_action(obs)
             data.act.action = action
             time_counter += 1
-            if len(model.memory) >= batch_size:
-                model.learn()
-            if time_counter % replace_target_iter == 0:
-                model.replace_target_net_weight()
+            if is_training:
+                if len(model.memory) >= batch_size:
+                    model.learn()
+                if time_counter % replace_target_iter == 0:
+                    model.replace_target_net_weight()
             print('action: ap{}, eps:{:.2f} loss:{:.2f}\n'.format(action, model.epsilon, model.loss_val))
             pass
     pro.wait()                                              # Wait the ns-3 to stop
