@@ -33,8 +33,8 @@ NS_LOG_COMPONENT_DEFINE("APSelectionExperiment");
 int memblock_key = 2333; /// < memory block key, need to keep the same in the python script
 Ns3AI ns3AI(memblock_key);
 double time_interval;
-uint32_t recvBytes = 0;
-uint32_t txBytes = 0;
+uint64_t recvBytes = 0;
+uint64_t txBytes = 0;
 double throughput = 0;
 std::string cwd;
 struct RssiMapEntry
@@ -227,7 +227,10 @@ void CheckThroughput (FlowMonitorHelper* fmhelper, Ptr<FlowMonitor> flowMon, Ipv
 			
 			std::cout << "rxThroughput: " << (stats->second.rxBytes - recvBytes) * 8.0 / time_interval / 1024 / 1024 << " Mbps" << std::endl;
 			std::cout << "TxThroughput: " << (stats->second.txBytes - txBytes) * 8.0 / time_interval / 1024 / 1024 << " Mbps" << std::endl;
-
+			std::cout << "stats->second.rxBytes:" << stats->second.rxBytes << std::endl;
+			std::cout << "recvBytes:" << recvBytes << std::endl;
+			std::cout << "stats->second.rxBytes:" << stats->second.txBytes << std::endl;
+			std::cout << "recvBytes:" << txBytes << std::endl;
 			throughput = (stats->second.rxBytes - recvBytes) * 8.0 / time_interval / 1024 / 1024;
 			recvBytes = stats->second.rxBytes;
 			txBytes = stats->second.txBytes;
