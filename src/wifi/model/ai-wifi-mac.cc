@@ -1192,4 +1192,13 @@ AiWifiMac::SetNewAssociation(Mac48Address bssid) {
   }
 }
 
+void
+AiWifiMac::SetReAssociation(Mac48Address bssid) {
+  SendAssociationRequest (false);
+  if (!m_linkUp.IsNull ())
+  {
+    m_linkUp ();
+  }
+}
+
 } //namespace ns3

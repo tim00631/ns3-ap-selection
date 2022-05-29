@@ -181,6 +181,11 @@ void GatherApInfo (Ptr<Node> targetStaNode) {
 	if (wifi_mac->GetBssid() != bssid) {
 		wifi_mac->SetNewAssociation(bssid);
 	}
+	else {
+		if (!wifi_mac->IsAssociated()) {
+			wifi_mac->SetReAssociation(bssid);
+		}
+	}
 
 	// clear state vector when AI action done
 	for (uint32_t i = 0; i < target_signalVec.size(); i++) {

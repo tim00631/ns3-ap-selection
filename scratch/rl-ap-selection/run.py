@@ -71,7 +71,7 @@ total_time = args.total_time
 time_interval = args.time_interval
 replace_target_iter = 20
 batch_size = 32
-lr = 0.01
+lr = 0.001
 epsilon = 0.6
 # ==================================
 nWifis = 9

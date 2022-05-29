@@ -150,7 +150,8 @@ public:
    */
   bool IsAssociated (void) const;
 
-  void SetNewAssociation(Mac48Address bssid);
+  void SetNewAssociation (Mac48Address bssid);
+  void SetReAssociation (Mac48Address bssid);
   void SendDisAssociation (void);
 private:
   /**
