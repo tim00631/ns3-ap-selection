@@ -145,29 +145,32 @@ void GatherApInfo (Ptr<Node> targetStaNode) {
 		oss << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/Phy/MonitorSnifferRx";
 		// std::cout << "sta: " << oss.str() << std::endl;
 		std::string context = oss.str();
-		for (auto it_sta: apVec[i]) {
+		for (std::unordered_map<std::string, RssiMapEntry>::iterator it_sta = apVec[i].begin(); it_sta != apVec[i].end(); ++it_sta) {
 			// std::cout << it_sta.first << std::endl;
-			if (it_sta.first == context) {
+			if (it_sta->first == context) {
 				// std::cout << "skip self signal" << std::endl;
-				target_signalVec[i] = it_sta.second.signal_avg;
+				target_signalVec[i] = it_sta->second.signal_avg;
 			}
-			else if (it_sta.second.signal_avg > interference_th) {
-				bg_signal_sumVec[i] += it_sta.second.signal_avg;
+			else if (it_sta->second.signal_avg > interference_th) {
+				bg_signal_sumVec[i] += it_sta->second.signal_avg;
 			}
 			else {
 				std::stringstream oss;
-				oss << "not to sum up " << it_sta.second.signal_avg  << " " << ConvertIndexToMacAddressStr(i) << std::endl;
+				oss << "not to sum up " << it_sta->second.signal_avg  << " " << ConvertIndexToMacAddressStr(i) << std::endl;
 				NS_LOG_DEBUG(oss.str());
 			}
 			// clear stats signal for every 0.5s
-			it_sta.second.signal_avg = 0;
-			it_sta.second.n_samples = 0;
+			it_sta->second.signal_avg = 0;
+			it_sta->second.n_samples = 0;
 		}
 	}
 	// Calculate SINR of target sta node
 	std::stringstream oss;
 	oss << "time " << std::setw(4) << Simulator::Now().GetSeconds() << "s RSSI:\n";
 	for (uint32_t i = 0; i < target_signalVec.size(); i++) {
+		if (target_signalVec[i] == 0) {
+			target_signalVec[i] = -93;
+		}
 		oss << std::setw(10) << target_signalVec[i] << " ";
 		// target_signalVec[i] /= (bg_signal_sumVec[i]+ 1);
 	}
@@ -234,8 +237,8 @@ void CheckThroughput (FlowMonitorHelper* fmhelper, Ptr<FlowMonitor> flowMon, Ipv
 			std::cout << "TxThroughput: " << (stats->second.txBytes - txBytes) * 8.0 / time_interval / 1024 / 1024 << " Mbps" << std::endl;
 			std::cout << "stats->second.rxBytes:" << stats->second.rxBytes << std::endl;
 			std::cout << "recvBytes:" << recvBytes << std::endl;
-			std::cout << "stats->second.rxBytes:" << stats->second.txBytes << std::endl;
-			std::cout << "recvBytes:" << txBytes << std::endl;
+			std::cout << "stats->second.txBytes:" << stats->second.txBytes << std::endl;
+			std::cout << "txBytes:" << txBytes << std::endl;
 			throughput = (stats->second.rxBytes - recvBytes) * 8.0 / time_interval / 1024 / 1024;
 			recvBytes = stats->second.rxBytes;
 			txBytes = stats->second.txBytes;
@@ -498,11 +501,16 @@ void APSelectionExperiment::InstallSwitchLanDevices()
 {
 	NS_LOG_UNCOND ("InstallSwitchLanDevices");
 	CsmaHelper csmaHelper;
+	CsmaHelper csmaApEthHelper;
 	BridgeHelper bridgeHelper;
+	std::string csmaDataRate = "10Mbps";
+	// std::string csmaDelay = "500ns";
+	csmaApEthHelper.SetChannelAttribute ("DataRate", StringValue (csmaDataRate));
+	// csmaApEthHelper.SetChannelAttribute ("Delay",    StringValue (csmaDelay));
 
 	/* connect all ap and server to a switch */
 	for(uint32_t i = 0; i < apNodes.GetN(); i++) {
-		NetDeviceContainer link = csmaHelper.Install(NodeContainer(apNodes.Get(i), switchNode));
+		NetDeviceContainer link = csmaApEthHelper.Install(NodeContainer(apNodes.Get(i), switchNode));
 		apEthDevices.Add(link.Get(0));
 		switchDevices.Add(link.Get(1));
 	}
@@ -531,12 +539,12 @@ void APSelectionExperiment::InstallWlanDevices()
 	WifiHelper wifi;
 	wifi.SetStandard(WIFI_PHY_STANDARD_80211g);
 	// wifi.SetStandard (WIFI_PHY_STANDARD_80211n_2_4GHZ);
-	// std::string phyMode("ErpOfdmRate12Mbps");
+	std::string phyMode("ErpOfdmRate24Mbps");
 	// Fix non-unicast data rate to be the same as that of unicast
-	// Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode", StringValue(phyMode));
-	// wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
-								// "DataMode",StringValue(phyMode),
-								// "ControlMode",StringValue(phyMode));
+	Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode", StringValue(phyMode));
+	wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
+								"DataMode",StringValue(phyMode),
+								"ControlMode",StringValue(phyMode));
 	YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default();
 	wifiPhy.Set("TxGain", DoubleValue(m_txGain));
 	wifiPhy.Set("RxGain", DoubleValue(m_rxGain));
@@ -555,7 +563,7 @@ void APSelectionExperiment::InstallWlanDevices()
 	wifiPhy.SetChannel(wifiChannel.Create());
 	// std::vector<uint32_t> apChannelNum {1, 6, 1, 11, 1, 11, 1, 6, 1};
 	std::vector<uint32_t> apChannelNum {1, 1, 1, 1, 1, 1, 1, 1, 1}; // ns3 doesn't support multi-channel scanning
-	std::vector<uint32_t> n_bg_stas {0, 2, 3, 1, 0, 1, 3, 1, 1}; // Randomly create 0~3 background stas around this ap.
+	std::vector<uint32_t> n_bg_stas {0, 2, 3, 1, 0, 1, 3, 0, 2}; // Randomly create 0~3 background stas around this ap.
 
 	CsmaHelper csmaHelper;
 	WifiMacHelper wifiMac;
@@ -634,25 +642,25 @@ void APSelectionExperiment::InstallApplications()
 	int serverPortBase = 8080;
 	for(uint32_t i = 0; i < staNodes.GetN(); i++)
 	{
-		UdpEchoServerHelper server(serverPortBase);
+		UdpServerHelper server(serverPortBase);
 		serverApps.Add(server.Install(serverNode));
 		Address serverAddress = InetSocketAddress(serverInterface.GetAddress(0), serverPortBase++);
 
-		UdpEchoClientHelper client(serverAddress);
+		UdpClientHelper client(serverAddress);
 		client.SetAttribute("MaxPackets", UintegerValue(4294967295u));
-		client.SetAttribute("Interval", TimeValue(Seconds(0.01)));
-		client.SetAttribute("PacketSize", UintegerValue(512));
+		client.SetAttribute("Interval", TimeValue(Seconds(0.0025)));
+		client.SetAttribute("PacketSize", UintegerValue(1472));
 		clientApps.Add(client.Install(staNodes.Get(i)));	
 	}
 
-	UdpEchoServerHelper server2(9000);
-	serverApps.Add(server2.Install(metricServerNode));
-	Address serverAddress2 = InetSocketAddress(metricServerInterface.GetAddress(0), 9000);
-	UdpEchoClientHelper client(serverAddress2);
+	UdpServerHelper server2(9000);
+	serverApps.Add(server2.Install(targetStaNode));
+	Address serverAddress2 = InetSocketAddress(targetStaInterface.GetAddress(0), 9000);
+	UdpClientHelper client(serverAddress2);
 	client.SetAttribute("MaxPackets", UintegerValue(4294967295u));
 	client.SetAttribute("Interval", TimeValue(Seconds(0.001)));
-	client.SetAttribute("PacketSize", UintegerValue(1024)); // Bytes
-	clientApps.Add(client.Install(targetStaNode));
+	client.SetAttribute("PacketSize", UintegerValue(1472)); // Bytes
+	clientApps.Add(client.Install(metricServerNode));
 	
 	serverApps.Start(Seconds(0.0));
 	serverApps.Stop(Seconds(m_total_time-0.5));
@@ -677,7 +685,7 @@ main(int argc, char *argv[])
 	uint32_t nWifis = 9;
 	uint32_t nStas = 1;
 	time_interval = 0.5;
-	double nodeSpeed = 0.5; //in m/s	
+	double nodeSpeed = 1; //in m/s	
 	int nodePause = 0; //in s
 	bool verbose = false;
 	bool enablePcap = false;
