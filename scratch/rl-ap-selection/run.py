@@ -54,7 +54,7 @@ def get_parser():
     parser.add_argument('--is_training', type=int, default=0)
     parser.add_argument('--enable_tb', type=int, default=1)
     parser.add_argument('--time_interval', type=float, default=0.5)
-
+    parser.add_argument('--model_name', type=str, default='default')
     return parser
 
 parser = get_parser()
@@ -69,6 +69,7 @@ enable_tb = args.enable_tb
 is_training = args.is_training
 total_time = args.total_time
 time_interval = args.time_interval
+model_name = args.model_name
 replace_target_iter = 20
 batch_size = 32
 lr = 0.001
@@ -99,7 +100,6 @@ ns3Settings = {
                 'time_interval': time_interval,
                 'cwd': cwd
             }
-model_name = 'DCRQN'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 start_time = datetime.now().strftime("%m%d-%H%M")
 if enable_tb :
