@@ -563,7 +563,8 @@ void APSelectionExperiment::InstallWlanDevices()
 	wifiPhy.SetChannel(wifiChannel.Create());
 	// std::vector<uint32_t> apChannelNum {1, 6, 1, 11, 1, 11, 1, 6, 1};
 	std::vector<uint32_t> apChannelNum {1, 1, 1, 1, 1, 1, 1, 1, 1}; // ns3 doesn't support multi-channel scanning
-	std::vector<uint32_t> n_bg_stas {0, 2, 3, 1, 0, 1, 3, 0, 2}; // Randomly create 0~3 background stas around this ap.
+	// std::vector<uint32_t> n_bg_stas {1, 2, 3, 1, 0, 1, 3, 0, 2}; // Randomly create 0~3 background stas around this ap.
+	std::vector<uint32_t> n_bg_stas {2, 3, 4, 2, 1, 2, 4, 1, 3}; // Randomly create 1~4 background stas around this ap.
 
 	CsmaHelper csmaHelper;
 	WifiMacHelper wifiMac;
