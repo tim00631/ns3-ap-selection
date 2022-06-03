@@ -116,15 +116,15 @@ void MonitorSniffRx (std::string context,
 			auto it_context = apVec[index].find(context);
 			if (it_context != apVec[index].end()) {
 				it_context->second.n_samples++;
-				// it_context->second.signal_avg += ((signalNoise.signal-signalNoise.noise) - it_context->second.signal_avg) / it_context->second.n_samples;
-				it_context->second.signal_avg += ((signalNoise.signal) - it_context->second.signal_avg) / it_context->second.n_samples;
+				it_context->second.signal_avg += ((signalNoise.signal-signalNoise.noise) - it_context->second.signal_avg) / it_context->second.n_samples;
+				// it_context->second.signal_avg += ((signalNoise.signal) - it_context->second.signal_avg) / it_context->second.n_samples;
 
 			}
 			else {
 				RssiMapEntry entry;
 				entry.n_samples = 1;
-				// entry.signal_avg = signalNoise.signal-signalNoise.noise;
-				entry.signal_avg = signalNoise.signal;
+				entry.signal_avg = signalNoise.signal-signalNoise.noise;
+				// entry.signal_avg = signalNoise.signal;
 
 				apVec[index].insert(std::pair<std::string, RssiMapEntry>(context, entry));
 			}
@@ -166,13 +166,13 @@ void GatherApInfo (Ptr<Node> targetStaNode) {
 	}
 	// Calculate SINR of target sta node
 	std::stringstream oss;
-	oss << "time " << std::setw(4) << Simulator::Now().GetSeconds() << "s RSSI:\n";
+	oss << "time " << std::setw(4) << Simulator::Now().GetSeconds() << "s SINR:\n";
 	for (uint32_t i = 0; i < target_signalVec.size(); i++) {
-		if (target_signalVec[i] == 0) {
-			target_signalVec[i] = -93;
-		}
+		// if (target_signalVec[i] == 0) {
+		// 	target_signalVec[i] = -93;
+		// }
 		oss << std::setw(10) << target_signalVec[i] << " ";
-		// target_signalVec[i] /= (bg_signal_sumVec[i]+ 1);
+		target_signalVec[i] /= (bg_signal_sumVec[i]+ 1);
 	}
 	oss << std::endl;
 	std::cout << oss.str();
@@ -382,18 +382,22 @@ void APSelectionExperiment::RunExperiment(uint32_t total_time,
 	NS_ASSERT(AP_address_index_mapping.size() == m_nWifis);
 	NS_ASSERT(target_signalVec.size() == m_nWifis);
 	NS_ASSERT(bg_signal_sumVec.size() == m_nWifis);
-	std::ostringstream ossta;
-	ossta << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/$ns3::WifiNetDevice/Mac/$ns3::StaWifiMac/Assoc";
-	Config::ConnectWithoutContext(ossta.str(), MakeCallback(&WhenAssociated));
-	ossta.clear();
-	ossta << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/$ns3::WifiNetDevice/Mac/$ns3::StaWifiMac/DeAssoc";
-	Config::ConnectWithoutContext(ossta.str(), MakeCallback(&DeAssoc));
+	std::ostringstream oss;
+	oss << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/$ns3::WifiNetDevice/Mac/$ns3::StaWifiMac/Assoc";
+	Config::ConnectWithoutContext(oss.str(), MakeCallback(&WhenAssociated));
+	oss.str("");
+	oss << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/$ns3::WifiNetDevice/Mac/$ns3::StaWifiMac/DeAssoc";
+	Config::ConnectWithoutContext(oss.str(), MakeCallback(&DeAssoc));
+	oss.str("");
 	// AsciiTraceHelper ascii;
 	// MobilityHelper::EnableAsciiAll(ascii.CreateFileStream("wifi-wired-bridging.mob"));
-	std::ostringstream oss;
+	for (uint32_t i = 0; i < staNodes.GetN(); i++) {
+		oss << "/NodeList/" << staNodes.Get(i)->GetId() << "/DeviceList/0/Phy/MonitorSnifferRx";
+		Config::Connect(oss.str(), MakeCallback(&MonitorSniffRx));
+		oss.str("");
+	}
 	oss << "/NodeList/" << targetStaNode->GetId() << "/DeviceList/0/Phy/MonitorSnifferRx";
 	Config::Connect(oss.str(), MakeCallback(&MonitorSniffRx));
-
 
 
 	// AnimationInterface anim(cwd+"/rl-ap-selection-anim.xml");
